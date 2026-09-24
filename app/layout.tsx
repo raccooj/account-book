@@ -15,8 +15,8 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "나의 스마트 가계부",
-  description: "간단한 지출 기록을 위한 가계부 웹 사이트",
+  title: "AI 가계부 챗봇",
+  description: "대화로 지출을 기록하는 AI 가계부",
 };
 
 export const viewport: Viewport = {
