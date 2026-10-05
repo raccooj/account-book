@@ -10,7 +10,7 @@ type ChatMessage = {
 };
 
 function formatAmount(value: number) {
-  return value.toLocaleString("ko-KR");
+  return value.toLocaleString("en-US");
 }
 
 export default function Home() {
@@ -20,7 +20,7 @@ export default function Home() {
       id: "welcome",
       role: "assistant",
       content:
-        "안녕하세요! 지출 기록도, 통계 질문도 가능해요.\n예: 오늘 점심 8000원 / 이번달 총 지출이 얼마야? / 가장 많이 쓴 항목이 뭐야?",
+        "Hi! You can log expenses or ask for stats.\nExamples: lunch 8000 today / how much did I spend this month? / what's my top expense?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -84,7 +84,7 @@ export default function Home() {
       };
 
       if (!response.ok || !data.reply) {
-        throw new Error(data.error ?? "응답을 받지 못했습니다.");
+        throw new Error(data.error ?? "No response received.");
       }
 
       setMessages((prev) => [
@@ -101,13 +101,13 @@ export default function Home() {
       }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "오류가 발생했습니다.";
+        error instanceof Error ? error.message : "Something went wrong.";
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: `죄송해요. 처리 중 문제가 생겼어요.\n${message}`,
+          content: `Sorry, something went wrong.\n${message}`,
         },
       ]);
     } finally {
@@ -120,10 +120,10 @@ export default function Home() {
       <header className="sticky top-0 z-10 border-b border-black/5 bg-background/90 px-4 py-4 backdrop-blur-md sm:px-6">
         <div className="mx-auto w-full max-w-2xl">
           <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-            AI 가계부 챗봇
+            AI Expense Chatbot
           </h1>
           <p className="mt-1 text-sm text-muted sm:text-base">
-            대화로 지출을 기록하세요
+            Track spending through conversation
           </p>
         </div>
       </header>
@@ -132,12 +132,12 @@ export default function Home() {
         <section className="shrink-0 px-4 pt-4 sm:px-6 sm:pt-5">
           <div className="mb-3 flex items-baseline justify-between gap-3">
             <h2 className="text-sm font-medium text-muted sm:text-base">
-              저장된 지출
+              Saved expenses
             </h2>
             {!loadingExpenses && expenses.length > 0 && (
               <p className="font-amount text-sm text-accent sm:text-base">
                 {formatAmount(expenses.reduce((s, e) => s + e.amount, 0))}
-                <span className="ml-0.5 font-sans text-muted">원</span>
+                <span className="ml-0.5 font-sans text-muted">KRW</span>
               </p>
             )}
           </div>
@@ -145,11 +145,11 @@ export default function Home() {
           <div className="flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {loadingExpenses ? (
               <div className="w-full rounded-2xl bg-surface px-4 py-5 text-center text-sm text-muted">
-                불러오는 중...
+                Loading...
               </div>
             ) : expenses.length === 0 ? (
               <div className="w-full rounded-2xl bg-surface px-4 py-5 text-center text-sm text-muted">
-                아직 저장된 지출이 없습니다
+                No expenses saved yet
               </div>
             ) : (
               expenses.map((expense) => (
@@ -163,7 +163,7 @@ export default function Home() {
                   <p className="font-amount text-lg font-medium text-foreground">
                     -{formatAmount(expense.amount)}
                     <span className="ml-0.5 font-sans text-xs font-normal text-muted">
-                      원
+                      KRW
                     </span>
                   </p>
                   <p className="text-xs text-muted sm:text-sm">{expense.date}</p>
@@ -197,7 +197,7 @@ export default function Home() {
           {sending && (
             <div className="flex justify-start">
               <div className="rounded-2xl rounded-bl-md bg-surface px-4 py-3 text-sm text-muted">
-                입력 중...
+                Typing...
               </div>
             </div>
           )}
@@ -214,7 +214,7 @@ export default function Home() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="지출 입력 또는 질문해 보세요"
+              placeholder="Log an expense or ask a question"
               disabled={sending}
               className="min-h-12 flex-1 touch-manipulation rounded-2xl bg-surface px-4 py-3 text-base text-foreground outline-none transition placeholder:text-muted/70 focus:ring-2 focus:ring-accent/25 disabled:opacity-60 sm:min-h-11 sm:text-[0.95rem]"
             />
@@ -223,7 +223,7 @@ export default function Home() {
               disabled={sending || !input.trim()}
               className="min-h-12 min-w-16 shrink-0 touch-manipulation rounded-2xl bg-accent px-4 text-base font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-11 sm:min-w-18"
             >
-              전송
+              Send
             </button>
           </div>
         </form>

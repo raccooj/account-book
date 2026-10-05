@@ -31,6 +31,21 @@ const GEMINI_MODELS = [
   "gemini-flash-latest",
 ] as const;
 
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
 function getKstDateParts(base = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
@@ -60,7 +75,7 @@ function shiftDate(days: number, base = getKstDateParts()) {
   return formatDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
 }
 
-/** 월요일=0 … 일요일=6 (한국식 주 시작: 월요일) */
+/** Monday = 0 … Sunday = 6 */
 function getMondayOffset(base = getKstDateParts()) {
   const jsDay = toUtcDate(base).getUTCDay();
   return jsDay === 0 ? 6 : jsDay - 1;
@@ -70,7 +85,16 @@ function getWeekDates(weekOffset: number, base = getKstDateParts()) {
   const monday = toUtcDate(base);
   monday.setUTCDate(monday.getUTCDate() - getMondayOffset(base) + weekOffset * 7);
 
-  const labels = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"] as const;
+  const labels = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ] as const;
+
   return labels.map((label, index) => {
     const date = new Date(monday);
     date.setUTCDate(monday.getUTCDate() + index);
@@ -108,11 +132,15 @@ function buildRelativeDateGuide(todayParts = getKstDateParts()) {
   );
 
   const daysAgoLines = [1, 2, 3, 4, 5, 6, 7, 10, 14]
-    .map((n) => `- "${n}일 전" / "${n}일전" → ${shiftDate(-n, todayParts)}`)
+    .map((n) => `- "${n} days ago" / "${n} day${n === 1 ? "" : "s"} ago" → ${shiftDate(-n, todayParts)}`)
     .join("\n");
 
-  const thisWeekLines = thisWeek.map((d) => `  - 이번주 ${d.label} → ${d.date}`).join("\n");
-  const lastWeekLines = lastWeek.map((d) => `  - 지난주 ${d.label} → ${d.date}`).join("\n");
+  const thisWeekLines = thisWeek
+    .map((d) => `  - this week ${d.label} → ${d.date}`)
+    .join("\n");
+  const lastWeekLines = lastWeek
+    .map((d) => `  - last week ${d.label} → ${d.date}`)
+    .join("\n");
 
   return {
     today,
@@ -125,55 +153,57 @@ function buildRelativeDateGuide(todayParts = getKstDateParts()) {
     thisMonthEnd,
     lastMonthStart,
     lastMonthEnd,
-    guide: `상대 날짜 변환표 (반드시 이 표 기준으로 계산하세요):
-- "오늘" → ${today}
-- "어제" → ${shiftDate(-1, todayParts)}
-- "그저께" / "그제" → ${shiftDate(-2, todayParts)}
+    guide: `Relative date conversion table (always use this table):
+- "today" → ${today}
+- "yesterday" → ${shiftDate(-1, todayParts)}
+- "the day before yesterday" → ${shiftDate(-2, todayParts)}
 ${daysAgoLines}
-- "일주일 전" / "1주일 전" / "한 주 전" → ${shiftDate(-7, todayParts)}
-- "이주 전" / "2주 전" → ${shiftDate(-14, todayParts)}
-- 이번주 (${thisWeek[0].date} ~ ${thisWeek[6].date}):
+- "a week ago" / "1 week ago" → ${shiftDate(-7, todayParts)}
+- "2 weeks ago" → ${shiftDate(-14, todayParts)}
+- this week (${thisWeek[0].date} ~ ${thisWeek[6].date}):
 ${thisWeekLines}
-- 지난주 (${lastWeek[0].date} ~ ${lastWeek[6].date}):
+- last week (${lastWeek[0].date} ~ ${lastWeek[6].date}):
 ${lastWeekLines}
-- 이번달: ${thisMonthStart} ~ ${thisMonthEnd}
-- 지난달: ${lastMonthStart} ~ ${lastMonthEnd}
+- this month: ${thisMonthStart} ~ ${thisMonthEnd}
+- last month: ${lastMonthStart} ~ ${lastMonthEnd}
 
-모호한 날짜 처리(지출 입력일 때만):
-- "지난주"만 있고 요일이 없으면 expense=null, 요일을 물어보세요.
-- "이번주"만 있고 요일이 없으면 요일을 물어보세요.
-- "저번주"는 "지난주"와 동일하게 처리하세요.`,
+Ambiguous dates (expense logging only):
+- If the user says only "last week" without a weekday, set expense=null and ask which day.
+- If the user says only "this week" without a weekday, ask which day.`,
   };
 }
 
-/** 의문사/통계 질문 → query, 금액 포함 기록 → expense (강한 질문이 우선) */
+/** Strong question words → query; amount included → expense (questions win) */
 function classifyIntent(message: string): Intent {
-  const normalized = message.replace(/\s+/g, " ").trim();
+  const normalized = message.replace(/\s+/g, " ").trim().toLowerCase();
 
   const strongQuestionPatterns = [
+    /\bhow much\b/,
+    /\bhow many\b/,
+    /\bwhat\b/,
+    /\bwhich\b/,
+    /\bwhen\b/,
+    /\bwhere\b/,
+    /\btotal\b/,
+    /\bsum\b/,
+    /\bspent\b/,
+    /\bspending\b/,
+    /\bmost\b/,
+    /\btop expense\b/,
+    /\bstatistics\b/,
+    /\bstats\b/,
+    /\banalyze\b/,
+    /\btell me\b/,
+    /\bshow me\b/,
+    /\bdid i\b/,
+    /\bdo i\b/,
     /얼마/,
     /얼마나/,
     /뭐\s*샀/,
-    /뭐\s*샀더라/,
     /무엇을/,
-    /뭐야/,
-    /뭐지/,
     /어떻게/,
-    /어디서/,
-    /언제/,
-    /어떤\s*항목/,
     /총\s*지출/,
-    /총액/,
-    /합계/,
     /가장\s*많이/,
-    /제일\s*많이/,
-    /통계/,
-    /분석/,
-    /알려줘/,
-    /알려\s*줄래/,
-    /궁금/,
-    /몇\s*건/,
-    /얼마나\s*썼/,
     /\?/,
   ];
 
@@ -182,16 +212,20 @@ function classifyIntent(message: string): Intent {
   }
 
   const hasAmount =
-    /\d[\d,]*(?:\.\d+)?\s*(?:원|만원|천원|억)/.test(normalized) ||
-    /\d[\d,]*만\b/.test(normalized) ||
-    /\d[\d,]*천\b/.test(normalized) ||
-    /(?:만원|천원)/.test(normalized);
+    /\$\s*\d/.test(normalized) ||
+    /\d[\d,]*(?:\.\d+)?\s*(?:krw|won|원|만원|천원|dollars?|usd)/i.test(message) ||
+    /\d[\d,]*만\b/.test(message) ||
+    /\d[\d,]*천\b/.test(message) ||
+    /\b\d[\d,]{2,}\b/.test(normalized);
 
   if (hasAmount) {
     return "expense";
   }
 
-  if (/지출|내역|목록|기록|소비|사용\s*내역|뭐\s*샀/.test(normalized)) {
+  if (
+    /\bexpenses?\b|\bhistory\b|\blist\b|\brecords?\b|\bpurchases?\b/.test(normalized) ||
+    /지출|내역|목록|기록/.test(message)
+  ) {
     return "query";
   }
 
@@ -245,17 +279,16 @@ function isValidExpense(expense: ExpensePayload | null | undefined): expense is 
 function buildConfirmReply(expense: ExpensePayload) {
   const [year, month, day] = expense.date.split("-").map(Number);
   const currentYear = getKstDateParts().year;
+  const monthName = MONTH_NAMES[month - 1];
   const dateLabel =
-    year === currentYear
-      ? `${month}월 ${day}일`
-      : `${year}년 ${month}월 ${day}일`;
+    year === currentYear ? `${monthName} ${day}` : `${monthName} ${day}, ${year}`;
 
-  return `${dateLabel} ${expense.description} ${expense.amount.toLocaleString("ko-KR")}원을 저장했어요!`;
+  return `Saved ${expense.description} for ${expense.amount.toLocaleString("en-US")} KRW on ${dateLabel}!`;
 }
 
 function formatHistory(history: ChatMessage[]) {
   return history
-    .map((item) => `${item.role === "user" ? "사용자" : "챗봇"}: ${item.content}`)
+    .map((item) => `${item.role === "user" ? "User" : "Assistant"}: ${item.content}`)
     .join("\n");
 }
 
@@ -291,7 +324,7 @@ async function generateWithFallback(apiKey: string, prompt: string) {
 
   throw lastError instanceof Error
     ? lastError
-    : new Error("Gemini API 호출에 실패했습니다.");
+    : new Error("Gemini API request failed.");
 }
 
 async function fetchAllExpenses(supabase: SupabaseClient) {
@@ -321,16 +354,16 @@ async function handleQuery(params: {
   try {
     expenses = await fetchAllExpenses(supabase);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : "알 수 없는 오류";
+    const detail = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: `지출 데이터를 불러오지 못했어요.\n(${detail})` },
+      { error: `Couldn't load expense data.\n(${detail})` },
       { status: 500 },
     );
   }
 
   const expenseLines =
     expenses.length === 0
-      ? "(저장된 지출 없음)"
+      ? "(no saved expenses)"
       : expenses
           .map(
             (item, index) =>
@@ -338,36 +371,37 @@ async function handleQuery(params: {
           )
           .join("\n");
 
-  const prompt = `당신은 친절한 한국어 가계부 통계 챗봇입니다.
-사용자의 질문에 대해 아래 지출 데이터만 근거로 자연스럽고 친근하게 답하세요.
-추측으로 없는 데이터를 만들지 마세요.
+  const prompt = `You are a friendly English-speaking expense stats chatbot.
+Answer the user's question using ONLY the expense data below.
+Do not invent data that is not present.
+Always reply in natural, friendly English.
 
-오늘 날짜(한국 시간): ${relative.today}
+Today's date (Korea time): ${relative.today}
 
 ${relative.guide}
 
-기간 해석 팁:
-- 이번달 → ${relative.thisMonthStart} ~ ${relative.thisMonthEnd} (또는 오늘까지)
-- 지난달 → ${relative.lastMonthStart} ~ ${relative.lastMonthEnd}
-- 이번주 → ${relative.thisWeekStart} ~ ${relative.thisWeekEnd}
-- 지난주 → ${relative.lastWeekStart} ~ ${relative.lastWeekEnd}
-- 어제 → ${relative.yesterday}
-- 식비/밥/점심/저녁/커피/카페 등은 description 키워드로 묶어 계산하세요.
-- 가장 많이 쓴 항목은 description 기준 합계가 가장 큰 항목입니다.
-- 금액은 천 단위 쉼표를 넣어 읽기 쉽게 말해 주세요.
+Period tips:
+- this month → ${relative.thisMonthStart} ~ ${relative.thisMonthEnd} (or until today)
+- last month → ${relative.lastMonthStart} ~ ${relative.lastMonthEnd}
+- this week → ${relative.thisWeekStart} ~ ${relative.thisWeekEnd}
+- last week → ${relative.lastWeekStart} ~ ${relative.lastWeekEnd}
+- yesterday → ${relative.yesterday}
+- Group food/meals/lunch/dinner/coffee/cafe by description keywords.
+- "Top expense" means the description with the highest total amount.
+- Format amounts with thousands separators and mention KRW.
 
-지출 데이터 (총 ${expenses.length}건):
+Expense data (${expenses.length} items):
 ${expenseLines}
 
-이전 대화:
-${formatHistory(history) || "(없음)"}
+Previous conversation:
+${formatHistory(history) || "(none)"}
 
-사용자 질문: ${message}
+User question: ${message}
 
-반드시 JSON만 출력:
-{"reply":"친절한 한국어 답변","expense":null}
+Output JSON only:
+{"reply":"friendly English answer","expense":null}
 
-데이터가 없으면 없다고 솔직히 말하세요.`;
+If there is no data, say so honestly.`;
 
   let text: string;
   try {
@@ -375,7 +409,7 @@ ${formatHistory(history) || "(없음)"}
   } catch {
     return NextResponse.json(
       {
-        error: "지금 AI 서버가 일시적으로 혼잡해요. 몇 초 뒤 다시 전송해 주세요.",
+        error: "The AI server is busy right now. Please try again in a few seconds.",
       },
       { status: 503 },
     );
@@ -385,7 +419,7 @@ ${formatHistory(history) || "(없음)"}
   if (!parsed?.reply?.trim()) {
     return NextResponse.json(
       {
-        error: "AI 응답을 이해하지 못했어요. 질문을 조금 바꿔서 다시 물어봐 주세요.",
+        error: "I couldn't understand the AI response. Please rephrase your question.",
       },
       { status: 502 },
     );
@@ -407,35 +441,36 @@ async function handleExpense(params: {
   const todayParts = getKstDateParts();
   const relative = buildRelativeDateGuide(todayParts);
 
-  const systemPrompt = `당신은 친절한 한국어 가계부 챗봇입니다.
-사용자 메시지에서 지출 정보를 추출해 JSON으로만 응답하세요.
-통계/조회 질문이 아니라 지출 기록 요청입니다.
+  const systemPrompt = `You are a friendly English-speaking expense chatbot.
+Extract expense details from the user message and respond with JSON only.
+This is an expense logging request, not a stats question.
+Always write the reply field in English.
 
-오늘 날짜(한국 시간): ${relative.today}
+Today's date (Korea time): ${relative.today}
 
 ${relative.guide}
 
-추출 규칙:
-1. date: 반드시 YYYY-MM-DD. 위 변환표를 우선 사용하세요.
-   - 구체적 날짜면 그대로 (예: 2026-04-01)
-   - 날짜 언급이 전혀 없으면 ${relative.today}
-2. amount: 정수(원). "2만원"=20000, "1.5만"=15000, "8천"=8000.
-3. description: 짧은 지출 내용 (예: 택시, 점심, 커피).
-4. 날짜·금액이 모호하면 expense=null로 두고 reply로 부족한 정보를 물어보세요.
+Extraction rules:
+1. date: must be YYYY-MM-DD. Prefer the conversion table above.
+   - Keep explicit dates as-is (e.g. 2026-04-01)
+   - If no date is mentioned, use ${relative.today}
+2. amount: integer. "20,000 won"=20000, "$15"=15, "8k"=8000.
+3. description: short expense label (e.g. taxi, lunch, coffee).
+4. If date or amount is unclear, set expense=null and ask for the missing info in reply.
 
-응답 JSON 형식만 사용:
-{"reply":"사용자에게 보여줄 한국어 문장","expense":{"date":"YYYY-MM-DD","amount":20000,"description":"택시"}}
-또는 정보가 부족할 때:
-{"reply":"지난주 무슨 요일인지 알려주세요!","expense":null}`;
+JSON format only:
+{"reply":"English message for the user","expense":{"date":"YYYY-MM-DD","amount":20000,"description":"taxi"}}
+or when info is missing:
+{"reply":"Which day last week was that?","expense":null}`;
 
   const prompt = `${systemPrompt}
 
-이전 대화:
-${formatHistory(history) || "(없음)"}
+Previous conversation:
+${formatHistory(history) || "(none)"}
 
-사용자: ${message}
+User: ${message}
 
-위 규칙에 맞는 JSON만 출력하세요.`;
+Output JSON that follows the rules above.`;
 
   let text: string;
   try {
@@ -443,7 +478,7 @@ ${formatHistory(history) || "(없음)"}
   } catch {
     return NextResponse.json(
       {
-        error: "지금 AI 서버가 일시적으로 혼잡해요. 몇 초 뒤 다시 전송해 주세요.",
+        error: "The AI server is busy right now. Please try again in a few seconds.",
       },
       { status: 503 },
     );
@@ -454,7 +489,7 @@ ${formatHistory(history) || "(없음)"}
   if (!parsed || typeof parsed.reply !== "string" || !parsed.reply.trim()) {
     return NextResponse.json(
       {
-        error: "AI 응답을 이해하지 못했어요. 조금 더 구체적으로 다시 말씀해 주세요.",
+        error: "I couldn't understand the AI response. Please be a bit more specific.",
       },
       { status: 502 },
     );
@@ -464,7 +499,7 @@ ${formatHistory(history) || "(없음)"}
     return NextResponse.json({
       reply:
         parsed.reply ||
-        "날짜와 금액을 잘 이해하지 못했어요. 예: 오늘 점심 15000원",
+        "I couldn't tell the date or amount. Example: lunch 15000 today",
       expense: null,
     });
   }
@@ -488,7 +523,7 @@ ${formatHistory(history) || "(없음)"}
   if (error) {
     return NextResponse.json(
       {
-        error: `지출 저장에 실패했어요. 잠시 후 다시 시도해 주세요.\n(${error.message})`,
+        error: `Couldn't save the expense. Please try again.\n(${error.message})`,
       },
       { status: 500 },
     );
@@ -510,7 +545,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Gemini API 키가 설정되어 있지 않습니다. .env.local에 GEMINI_API_KEY를 확인해 주세요.",
+            "GEMINI_API_KEY is not set. Please check your .env.local file.",
         },
         { status: 500 },
       );
@@ -518,7 +553,7 @@ export async function POST(request: Request) {
 
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json(
-        { error: "Supabase 환경 변수가 설정되어 있지 않습니다." },
+        { error: "Supabase environment variables are not set." },
         { status: 500 },
       );
     }
@@ -531,7 +566,7 @@ export async function POST(request: Request) {
     const message = body.message?.trim();
     if (!message) {
       return NextResponse.json(
-        { error: "메시지를 입력해 주세요." },
+        { error: "Please enter a message." },
         { status: 400 },
       );
     }
@@ -547,10 +582,10 @@ export async function POST(request: Request) {
     return handleExpense({ apiKey, supabase, message, history });
   } catch (error) {
     const detail =
-      error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
+      error instanceof Error ? error.message : "An unknown error occurred.";
     return NextResponse.json(
       {
-        error: `처리 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.\n(${detail})`,
+        error: `Something went wrong. Please try again.\n(${detail})`,
       },
       { status: 500 },
     );

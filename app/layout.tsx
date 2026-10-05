@@ -15,8 +15,8 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI 가계부 챗봇",
-  description: "대화로 지출을 기록하는 AI 가계부",
+  title: "AI Expense Chatbot",
+  description: "An AI expense tracker you can chat with",
 };
 
 export const viewport: Viewport = {
@@ -27,7 +27,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="ko"
+      lang="en"
       className={`${notoSansKr.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">{children}</body>
